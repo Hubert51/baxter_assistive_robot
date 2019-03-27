@@ -48,7 +48,8 @@ robotArm.setJointCommand('right', right);
 
 % waiting for movements complete
 pause(1);
-while ~prod(robotArm.joint_velocities < 0.1); end
+while ~prod(robotArm.joint_velocities < 0.1); end%     img = readImage(imgMsg);
+%     imshow(img);
 pause(0.5);
 
 % some data
@@ -137,17 +138,30 @@ for i = 4:4
     %    testout = Hbase2rightcam * right2tag * ...
     %        axang2tform([1 0 0 -pi/2]) * axang2tform([0 0 1 pi/2])
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    position = base2tag(1:3,4) - [0.1301; -0.0292; 0.0527];
+    
+    % middle grib position
+    position = base2tag(1:3,4) - [0.1201; 0.0108; 0.0627];
+    % the position of the area at the front of the fridge.
+    % for left hand
+    front_fridge_pos = base2tag(1:3,4);
+    
     orientation = rotm2quat(base2tag(1:3,1:3))';
     
     rightqs = robotArm.solveIKfast(position, orientation, 'right');
     robotArm.setJointCommand('right', rightqs);
     
     load('Hubert.mat', 'record');
-    moveArm(robotArm, 'right')
+    % to move arm bu user
+    % moveArm(robotArm, 'right')
     followPath(robotArm, record );
     
     record = zeros(14,100);
+    
+    % move left hand to the front of fridge
+    left_front_fridge_qs = robotArm.solveIKfast(front_fridge_pos, orientation, 'left');
+    robotArm.setJointCommand('left', left_front_fridge_qs);
+
+    
 %     for i = 1:100
 %         pause(0.2);
 %         record(:,i) = robotArm.joint_positions;

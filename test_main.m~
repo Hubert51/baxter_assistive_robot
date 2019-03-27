@@ -48,7 +48,8 @@ robotArm.setJointCommand('right', right);
 
 % waiting for movements complete
 pause(1);
-while ~prod(robotArm.joint_velocities < 0.1); end
+while ~prod(robotArm.joint_velocities < 0.1); end%     img = readImage(imgMsg);
+%     imshow(img);
 pause(0.5);
 
 % some data
@@ -89,7 +90,7 @@ for i = 4:4
     
     pause(0.5);
     while ~prod(robotArm.joint_velocities < 0.05); end
-    pause(2);
+    pause(10);
     tic;
     arTagposes = rightCamera.ARtag_Detection();
     
@@ -131,27 +132,41 @@ for i = 4:4
     bias(1:3, 4) = [-0.1 -0.025 0.04]';
     bias = bias*axang2tform([0 0 1 pi])*axang2tform([1 0 0 -pi/36]);
     base2tag = Hbase2rightcam * right2tag * bias;
-    
+     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%  debug  %%%%
     %    testout = Hbase2rightcam * right2tag * ...
     %        axang2tform([1 0 0 -pi/2]) * axang2tform([0 0 1 pi/2])
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    position = base2tag(1:3,4) - [0.1351; -0.0292; 0.0527];
+    
+    % middle grib position
+    position = base2tag(1:3,4) - [0.1201; 0.0108; 0.0627];
+    % the position of the area at the front of the fridge.
+    % for left hand
+    front_fridge_pos = base2tag(1:3,4);
+    
     orientation = rotm2quat(base2tag(1:3,1:3))';
     
     rightqs = robotArm.solveIKfast(position, orientation, 'right');
     robotArm.setJointCommand('right', rightqs);
     
-    record = load('Hubert.mat');
-    followPath(robotArm, record, 'right');
+    load('Hubert.mat', 'record');
+    % to move arm bu user
+    % moveArm(robotArm, 'right')
+    followPath(robotArm, record );
     
     record = zeros(14,100);
-    for i = 1:100
-        pause(0.2);
-        record(:,i) = robotArm.joint_positions;
-    end
-    disp(record)
+    
+    % move left hand to the front of fridge
+    left_front_fridge_qs = robotArm.solveIKfast(front_fridge_pos, orientation, 'left');
+    robotArm.setJointCommand('left', left_front_fridge_qs);
+
+    
+%     for i = 1:100
+%         pause(0.2);
+%         record(:,i) = robotArm.joint_positions;
+%     end
+%     disp(record)
     %%Hubert test
 %     
 %     
