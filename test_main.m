@@ -140,15 +140,28 @@ for i = 4:4
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     % middle grib position
-    position = base2tag(1:3,4) - [0.1201; 0.0108; 0.0627];
+    position = base2tag(1:3,4) - [0.1201; 0.0058; 0.0627];
+    
     % the position of the area at the front of the fridge.
     % for left hand
-    front_fridge_pos = base2tag(1:3,4);
-    
+    front_fridge_pos = Hbase2headside(1:3,4) + [0.2; 0; 0];
     orientation = rotm2quat(base2tag(1:3,1:3))';
     
     rightqs = robotArm.solveIKfast(position, orientation, 'right');
     robotArm.setJointCommand('right', rightqs);
+    position(3) = position(3) + 0.005;
+    rightqs = robotArm.solveIKfast(position, orientation, 'right');
+    robotArm.setJointCommand('right', rightqs);
+    pause(0.5)
+    position(3) = position(3) - 0.01;
+    rightqs = robotArm.solveIKfast(position, orientation, 'right');
+    robotArm.setJointCommand('right', rightqs);
+    pause(0.5)
+    position(3) = position(3) + 0.005;
+    rightqs = robotArm.solveIKfast(position, orientation, 'right');
+    robotArm.setJointCommand('right', rightqs);        
+    pause(0.5)
+
     
     load('Hubert.mat', 'record');
     % to move arm bu user
