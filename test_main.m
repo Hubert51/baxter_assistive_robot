@@ -171,7 +171,9 @@ for i = 4:4
     record = zeros(14,100);
     
     % move left hand to the front of fridge
-    left_front_fridge_qs = robotArm.solveIKfast(front_fridge_pos, orientation, 'left');
+    front_fridge_ori = orientation;
+    front_fridge_ori(1:4) = [ 0.7189; -0.0079; 0.6934; -0.0473 ];
+    left_front_fridge_qs = robotArm.solveIKfast(front_fridge_pos, front_fridge_ori, 'left');
     robotArm.setJointCommand('left', left_front_fridge_qs);
 
     
