@@ -1,4 +1,4 @@
-function [ tform ] = featureMatcher( query, train )
+function [ tform, theta ] = featureMatcher( query, train )
 
 %% Find Image Rotation and Scale Using Automated Feature Matching
 % This example shows how to automatically align two images that differ by a
@@ -23,7 +23,7 @@ function [ tform ] = featureMatcher( query, train )
 %% Step 3: Find Matching Features Between Images
 % Detect features in both images.
 ptsQuery  = detectSURFFeatures(query);
-ptsTrain = detectSURFFeatures(Train);
+ptsTrain = detectSURFFeatures(train);
 
 %%
 % Extract feature descriptors.
@@ -82,3 +82,7 @@ matchedTrain = validPtsTrain(indexPairs(:,2));
 %%
 % Compute the inverse transformation matrix.
 Tinv  = tform.invert.T;
+ss = Tinv(2,1);
+sc = Tinv(1,1);
+scale_recovered = sqrt(ss*ss + sc*sc);
+theta = atan2(ss,sc)*180/pi;
