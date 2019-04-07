@@ -16,8 +16,9 @@ function [ ] = getFood(robotArm, robotPeripheries, arTagposes, side)
 
     % the position we are gonna put the hand in front of the handle has a 
     % bias from the tag. 
-    bias = axang2tform([0 0 1 pi]);
-    % bias(1:3, 4) = [ 0.09  0  0.08 ]';
+    bias = axang2tform([1 0 0 pi]);
+
+    bias(1:3, 4) = [ 0  0  0.2 ]';
     bias = bias*axang2tform([0 0 1 pi])*axang2tform([1 0 0 -pi/36]);
     base2foodtag = Hbase2leftcam * left2tag * bias ;
 
@@ -28,7 +29,7 @@ function [ ] = getFood(robotArm, robotPeripheries, arTagposes, side)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     % middle grib position
-    position = base2foodtag(1:3,4) - [0.4 ;-0.3; 0] ;
+    position = base2foodtag(1:3,4); %- [0.4 ;-0.3; 0] ;
     orientation = [-1; -1; 1; 1] .* rotm2quat(base2foodtag(1:3,1:3))' ;
     leftqs = robotArm.solveIKfast(position, orientation, side);
     robotArm.setJointCommand(side, leftqs);   
