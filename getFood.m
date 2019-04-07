@@ -16,8 +16,8 @@ function [ ] = getFood(robotArm, robotPeripheries, arTagposes, side)
 
     % the position we are gonna put the hand in front of the handle has a 
     % bias from the tag. 
-    bias = axang2tform([1 0 0 -pi]);
-    bias(1:3, 4) = [ 0 0 0 ]';
+    bias = axang2tform([0 1 0 pi]);
+    bias(1:3, 4) = [ 0.09  0  0.08 ]';
     bias = bias*axang2tform([0 0 1 pi])*axang2tform([1 0 0 -pi/36]);
     base2foodtag = Hbase2leftcam * left2tag * bias;
 
