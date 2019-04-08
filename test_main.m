@@ -161,6 +161,16 @@ for i = 4:4
     rightqs = robotArm.solveIKfast(position, orientation, 'right');
     robotArm.setJointCommand('right', rightqs);        
     pause(0.5)
+    
+    %% check right hand hold the door
+    % move left camera
+    load('important_data.mat', 'obv_pos')
+    load('important_data.mat', 'obv_ori')
+    
+    leftqs_check = robotArm.solveIKfast(obv_pos, obv_ori, 'left');
+    robotArm.setJointCommand('left', leftqs_check);        
+    pause(3)
+    
 
     
     load('Hubert.mat', 'record');
@@ -175,6 +185,9 @@ for i = 4:4
     % front_fridge_ori(1:4) = [ 0.7189; -0.0079; 0.6934; -0.0473 ];
     left_front_fridge_qs = robotArm.solveIKfast(front_fridge_pos, front_fridge_ori, 'left');
     robotArm.setJointCommand('left', left_front_fridge_qs);
+    load( 'detection.mat', 'record' );
+    ArTags = searchFood( leftCamera, robotArm, record );
+    getFood(robotArm, robotPeripheries, ArTags, 'left');
 
     
 %     for i = 1:100
