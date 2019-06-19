@@ -15,7 +15,6 @@ robotArm = RobotRaconteur.Connect('tcp://localhost:2345/BaxterJointServer/Baxter
 rightCamera = RobotRaconteur.Connect('tcp://localhost:4567/BaxterCameraServer/right_hand_camera');
 leftCamera = RobotRaconteur.Connect('tcp://localhost:9087/BaxterCameraServer/left_hand_camera');
 robotPeripheries = RobotRaconteur.Connect('tcp://localhost:6708/BaxterPeripheralServer/BaxterPeripherals');
-
 % set the mode=1 if using moveit module to move the arm.
 % robotArm.setControlMode(uint8(1));
 % robotArm.moveitSetJointCommand('both_arm', [1.0; 2.; 3.; 4.;5]);
@@ -34,6 +33,10 @@ leftCamera.setCameraIntrinsics(cameraparams_lefthand);
 rightCamera.setMarkerSize(0.055);
 leftCamera.setMarkerSize(0.055);
 pause(1);
+
+robotArm.setControlMode(uint8(1));
+robotPeripheries.calibrateGripper('l');
+robotPeripheries.openGripper('l');
 
 robotPeripheries.calibrateGripper('r');
 robotPeripheries.openGripper('r');
@@ -62,7 +65,8 @@ deltaTheta = 10/180*pi;
     % Every part moves the door open 10 degrees.
 deltaAlpha = -pi/2/12;
 robotArm.setPositionModeSpeed(0.3);
-r = 0.25; % The radius of the fridge door
+r = 0.34; % The radius of the fridge door
+r_microwave = 0.295; % radius of the microwave door
 
 for i = 4:4
     % looking for the tag
@@ -136,6 +140,10 @@ for i = 4:4
     bias(1:3, 4) = [-0.1 -0.025 -0.045]';
     bias = bias*axang2tform([0 0 1 pi])*axang2tform([1 0 0 -pi/36]);
     base2tag = Hbase2rightcam * right2tag * bias;
+    
+    add_fridge(robotArm, Hbase2rightcam * right2tag);
+
+
      
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%  debug  %%%%
@@ -150,7 +158,7 @@ for i = 4:4
     
     % the position of the area at the front of the fridge.
     % for left hand
-    front_fridge_pos = Hbase2headside(1:3,4) + [0.1; 0; 0];
+    front_fridge_pos = Hbase2headside(1:3,4) + [0.08; 0.025; 0];
     orientation = rotm2quat(base2tag(1:3,1:3))';
     robotArm.setControlMode(uint8(0));
     rightqs = robotArm.solveIKfast(position, orientation, 'right');
@@ -260,29 +268,70 @@ for i = 4:4
 %%%%%%%%%%%%%%%%%% 3: close the gripper and open the door %%%%%%%%%%%%%%%%%
             % tear down the process of drawing an arc into nine parts
             robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
-            robotPeripheries.closeGripper('r');
+            old_joint_pos = robotArm.joint_positions;
+            offset = 0;
             for j = 1:9
+                joint_pos = robotArm.joint_positions;
+                joint_pos = joint_pos(8:14);
+                % 3X1 of position and 4*1 of quaternion
                 base2right = robotPeripheries.lookUptransforms('/base', ...
                     '/right_hand');
                 Hbase2right = quat2tform([base2right.quaternion(4); ...
                     base2right.quaternion(1:3)]');
                 Hbase2right(1:3,4) = base2right.position;
+                
+%                 original parameter
                 base2handle = Hbase2right * ...
                     [axang2rotm([0 1 0 deltaTheta]), ...
-                    [-r*(1-cos(deltaTheta)) 0 0.15-r*sin(deltaTheta)]'; ...
+                    [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)+offset]'; ...
                     0 0 0 1];
+                
+                % new parameter
+%                 base2handle = Hbase2right * ...
+%                     [axang2rotm([0 1 0 deltaTheta]), ...
+%                     [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)]'; ...
+%                     0 0 0 1];
                 position_temp = base2handle(1:3,4);
                 orientation_temp = rotm2quat(base2handle(1:3,1:3))';
                 
                 % each part requires an IK 
                 rightqs_temp = robotArm.solveIKfast(position_temp, ...
                     orientation_temp, 'right');
+                joint_diff = rightqs_temp - joint_pos;
+                
+                % this section try to make the opening door more smoothly.
+                % if the joint angle changes largely, the code will
+                % calculate another target position and recalculate the
+                % inverse kinematics.
+                temp_offset = 0;
+                while ~isempty(find( abs(joint_diff) > 0.7, 1))
+                    temp_offset = rand()*0.3 - 0.1;
+                    base2handle = Hbase2right * ...
+                    [axang2rotm([0 1 0 deltaTheta]), ...
+                    [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)+temp_offset]'; ...
+                    0 0 0 1];
+                    position_temp = base2handle(1:3,4);
+                    joint_pos = robotArm.joint_positions;
+                    joint_pos = joint_pos(8:14);
+                    rightqs_temp = robotArm.solveIKfast(position_temp, ...
+                    orientation_temp, 'right');
+                    joint_diff = rightqs_temp - joint_pos;
+                end
+                % to give the offset back the system in next iteration.
+                offset = -temp_offset;
+                    
                 if ~isempty(rightqs_temp)
                     robotArm.setJointCommand('right', rightqs_temp);
                 end
                 pause(0.3);
                 while ~prod(robotArm.joint_velocities < 0.06); end
-                pause(0.3);
+                % torque = robotArm.joint_torques;
+                % real_pos = robotArm.endeffector_positions;
+                % pos_diff = position_temp - real_pos(4:6)
+                % torque = torque(8:14)
+                % pause(0.3);
+                
+                reset_position('right', robotArm);
             end
             robotArm.setPositionModeSpeed(0.3);
                         
@@ -351,10 +400,12 @@ for i = 4:4
             
             % the place to put the vacuum suction has an offset to the tag 
             bias_l = axang2tform([0 1 0 pi]);
-            bias_l(1:3,4) = [0.09 0 0.08]';
+            bias_l(1:3,4) = [0.09 0 0]';
             base2door = Hbase2leftcam * left2tag * bias_l;
             position = base2door(1:3,4);
             orientation = rotm2quat(base2door(1:3,1:3))';
+            add_microwave(robotArm, Hbase2leftcam * left2tag);
+
 
             % solve IK for joint angles that move the gripper to the place
             leftqs_m = robotArm.solveIKfast(position, orientation, 'left');
@@ -371,46 +422,61 @@ for i = 4:4
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%% 5: open the microwave oven door %%%%%%%%%%%%%%%%%%%%%
             % the process is divided into 12 parts
-            for j = 1:12
-                arTagposes_l = leftCamera.ARtag_Detection();
-                if isempty(arTagposes_l)
-                    system('spd-say "no tag detected"');
-                    continue;
+             %% the open fridge door algo
+            robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
+
+            fix_pos = robotArm.endeffector_positions;
+            fix_pos = fix_pos(1:3);
+            for j = 1:9
+                joint_pos = robotArm.joint_positions;
+                joint_pos = joint_pos(1:7);
+                % 3X1 of position and 4*1 of quaternion
+                base2left = robotPeripheries.lookUptransforms('/base', ...
+                    '/left_hand');
+                Hbase2left = quat2tform([base2left.quaternion(4); ...
+                    base2left.quaternion(1:3)]');
+
+                % this transformation matrix does not include position change, only 
+                % includes orientation change 
+                base2handle = Hbase2left * ...
+                    [axang2rotm([0 1 0 -deltaTheta]), ...
+                    [0 0 0]'; ...
+                    0 0 0 1];
+
+                orientation_temp = rotm2quat(base2handle(1:3,1:3))';
+                % here is position changing.
+                position_temp = fix_pos + [-r_m*(sin(deltaTheta*j)); r_m*(1-cos(deltaTheta*j)); 0];
+                % each part requires an IK 
+                leftqs_temp = robotArm.solveIKfast(position_temp, ...
+                    orientation_temp, 'left');
+                joint_diff = leftqs_temp - joint_pos;
+
+                % this section try to make the opening door more smoothly.
+                % if the joint angle changes largely, the code will
+                % calculate another target position and recalculate the
+                % inverse kinematics.
+                temp_offset = 0;
+                while ~isempty(find( abs(joint_diff) > 0.7, 1))
+                    leftqs_temp = robotArm.solveIKfast(position_temp, ...
+                    orientation_temp, 'left');
+                    joint_diff = leftqs_temp - joint_pos;
+                    disp 'recalculate trajectory';
                 end
 
-                index_m = find(arTagposes_l.ids == 2); % door tag
-                if isempty(index_m)
-                    system('spd-say "nothing detected"');
-                    continue;
-                end
-
-                % get base to left hand camera transform
-                base2leftcam = robotPeripheries.lookUptransforms('/base', ...
-                    '/left_hand_camera');
-                Hbase2leftcam = quat2tform([base2leftcam.quaternion(4); ...
-                    base2leftcam.quaternion(1:3)]');
-                Hbase2leftcam(1:3,4) = base2leftcam.position;
-
-                % receive the transform from left hand to tag 
-                left2tag = reshape( ...
-                    arTagposes_l.tmats((index_m-1)*16+1: index_m*16), 4, 4);
-                bias_l = axang2tform([0 1 0 pi]);
-                bias_l(1:3,4) = [0.087 0 0.12]';
-                base2door_temp = Hbase2leftcam * left2tag * bias_l * ...
-                    axang2tform([0 1 0 deltaAlpha]);
-                position = base2door_temp(1:3,4);
-                orientation = rotm2quat(base2door_temp(1:3,1:3))';
-
-                % solve IK for joint angles that move the gripper
-                leftqs_temp = robotArm.solveIKfast(position, ...
-                    orientation, 'left');
                 if ~isempty(leftqs_temp)
                     robotArm.setJointCommand('left', leftqs_temp);
+                    disp j;
                 end
-                pause(0.2);
-                while ~prod(robotArm.joint_velocities < 0.06); end
                 pause(0.3);
+                % to wait for every joint move.
+                while ~prod( abs(robotArm.joint_velocities) < 0.03); 
+                    robotArm.joint_velocities;
+                end
+                pause(1);
+                reset_position('left', robotArm);
             end
+            robotArm.setPositionModeSpeed(0.3);
+            
             robotPeripheries.openGripper('l');
             pause(1);
             % move the lefthand backward and downward to avoid collision
