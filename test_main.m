@@ -35,8 +35,8 @@ leftCamera.setMarkerSize(0.055);
 pause(1);
 
 robotArm.setControlMode(uint8(1));
-robotPeripheries.calibrateGripper('l');
-robotPeripheries.openGripper('l');
+% robotPeripheries.calibrateGripper('l');
+% robotPeripheries.openGripper('l');
 
 robotPeripheries.calibrateGripper('r');
 robotPeripheries.openGripper('r');
@@ -65,7 +65,8 @@ deltaTheta = 10/180*pi;
     % Every part moves the door open 10 degrees.
 deltaAlpha = -pi/2/12;
 robotArm.setPositionModeSpeed(0.3);
-r = 0.34; % The radius of the fridge door
+r = 0.35; % The radius of the fridge door
+r_m = 0.295;
 r_microwave = 0.295; % radius of the microwave door
 
 for i = 4:4
@@ -141,7 +142,7 @@ for i = 4:4
     bias = bias*axang2tform([0 0 1 pi])*axang2tform([1 0 0 -pi/36]);
     base2tag = Hbase2rightcam * right2tag * bias;
     
-    add_fridge(robotArm, Hbase2rightcam * right2tag);
+    % add_fridge(robotArm, Hbase2rightcam * right2tag);
 
 
      
@@ -165,7 +166,8 @@ for i = 4:4
     robotArm.setJointCommand('right', rightqs);
     pause(3);
     robotPeripheries.closeGripper('r');
-    
+    add_fridge(robotArm, Hbase2rightcam * right2tag);
+
     tempPos = robotArm.endeffector_positions;
     
     %     position(3) = position(3) + 0.005;
@@ -268,9 +270,15 @@ for i = 4:4
 %%%%%%%%%%%%%%%%%% 3: close the gripper and open the door %%%%%%%%%%%%%%%%%
             % tear down the process of drawing an arc into nine parts
             robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
+            fix_pos = robotArm.endeffector_positions;
+            fix_pos = fix_pos(4:6);
             old_joint_pos = robotArm.joint_positions;
             offset = 0;
             for j = 1:9
+                robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
+                if j == 1
+                    robotArm.setPositionModeSpeed(0.09); % slowly (unnecessary...)
+                end
                 joint_pos = robotArm.joint_positions;
                 joint_pos = joint_pos(8:14);
                 % 3X1 of position and 4*1 of quaternion
@@ -291,7 +299,10 @@ for i = 4:4
 %                     [axang2rotm([0 1 0 deltaTheta]), ...
 %                     [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)]'; ...
 %                     0 0 0 1];
-                position_temp = base2handle(1:3,4);
+                position_temp = fix_pos + [-r*(sin(deltaTheta*j)); -r*(1-cos(deltaTheta*j)); 0];
+
+                % the position from homogenous transformation
+                % position_temp = base2handle(1:3,4);
                 orientation_temp = rotm2quat(base2handle(1:3,1:3))';
                 
                 % each part requires an IK 
@@ -324,7 +335,7 @@ for i = 4:4
                     robotArm.setJointCommand('right', rightqs_temp);
                 end
                 pause(0.3);
-                while ~prod(robotArm.joint_velocities < 0.06); end
+                while ~prod( abs(robotArm.joint_velocities) < 0.06); end
                 % torque = robotArm.joint_torques;
                 % real_pos = robotArm.endeffector_positions;
                 % pos_diff = position_temp - real_pos(4:6)
@@ -404,7 +415,6 @@ for i = 4:4
             base2door = Hbase2leftcam * left2tag * bias_l;
             position = base2door(1:3,4);
             orientation = rotm2quat(base2door(1:3,1:3))';
-            add_microwave(robotArm, Hbase2leftcam * left2tag);
 
 
             % solve IK for joint angles that move the gripper to the place
@@ -418,6 +428,7 @@ for i = 4:4
             pause(1);
             robotPeripheries.closeGripper('l');
             pause(1);
+            add_microwave(robotArm, Hbase2leftcam * left2tag);
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%% 5: open the microwave oven door %%%%%%%%%%%%%%%%%%%%%
