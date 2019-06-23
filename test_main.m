@@ -11,6 +11,7 @@
 
 
 % connecting to robotRR bridges
+% pause(5)
 robotArm = RobotRaconteur.Connect('tcp://localhost:2345/BaxterJointServer/Baxter');
 rightCamera = RobotRaconteur.Connect('tcp://localhost:4567/BaxterCameraServer/right_hand_camera');
 leftCamera = RobotRaconteur.Connect('tcp://localhost:9087/BaxterCameraServer/left_hand_camera');
@@ -55,7 +56,7 @@ robotArm.setJointCommand('right', right);
 
 % waiting for movements complete
 pause(1);
-while ~prod(robotArm.joint_velocities < 0.1); end%     img = readImage(imgMsg);
+while ~prod(abs(robotArm.joint_velocities) < 0.1); end%     img = readImage(imgMsg);
 %     imshow(img);
 pause(0.5);
 
@@ -92,27 +93,24 @@ for i = 4:4
     
     Hbase2headside = ... 
         Hbase2headcam*moveforward;
-    position = Hbase2headside(1:3,4);
-    orientation = rotm2quat(Hbase2headside(1:3,1:3))';
-    rightqs = robotArm.solveIKfast(position, orientation, 'right');
+    
+    % position and otientation before the fridge door
+    fridge_door_pos = Hbase2headside(1:3,4);
+    fridge_door_ori = rotm2quat(Hbase2headside(1:3,1:3))';
+    rightqs = robotArm.solveIKfast(fridge_door_pos, fridge_door_ori, 'right');
     robotArm.setJointCommand('right', rightqs);
     
     pause(0.5);
     while ~prod(robotArm.joint_velocities < 0.05); end
-    pause(10);
+    pause(5);
     tic;
     arTagposes = rightCamera.ARtag_Detection();
     
-%     imgSub = rossubscriber('/cameras/right_hand_camera/image');
-%     imgMsg = receive(imgSub); % or imgMsg = imgSub.LatestMessage
-%     img = readImage(imgMsg);
-%     imshow(img);
-
-    disp('Check whether find the tag or not')
     disp(arTagposes)
     while(toc < 0.1); pause(0.005); end
     
-    % make sure the camera sees the tag of fridge
+    % if no arTag, to go to the next iteration. Currently, this code is 
+    % unnecessary. make sure the camera sees the tag of fridge
     if isempty(arTagposes)
         continue;
     end
@@ -164,7 +162,9 @@ for i = 4:4
     robotArm.setControlMode(uint8(0));
     rightqs = robotArm.solveIKfast(position, orientation, 'right');
     robotArm.setJointCommand('right', rightqs);
-    pause(3);
+    pause(1)
+    while ~prod(abs(robotArm.joint_velocities) < 0.05); end
+    pause(1);
     robotPeripheries.closeGripper('r');
     add_fridge(robotArm, Hbase2rightcam * right2tag);
 
@@ -176,7 +176,7 @@ for i = 4:4
     %     pause(0.5)
     %     position(3) = position(3) - 0.01;
     %     rightqs = robotArm.solveIKfast(position, orientation, 'right');
-    %     robotArm.setJointCommand('right', rightqs);
+    %     robotArm.setJointCommandHbase2headside('right', rightqs);
     %     pause(0.5)
     %     position(3) = position(3) + 0.005;
     %     rightqs = robotArm.solveIKfast(position, orientation, 'right');
@@ -345,7 +345,7 @@ for i = 4:4
                 reset_position('right', robotArm);
             end
             robotArm.setPositionModeSpeed(0.3);
-                        
+            robotArm.removeAttachedObject('right_gripper', '')
             robotPeripheries.openGripper('r');
             pause(1);
             
@@ -487,10 +487,11 @@ for i = 4:4
                 reset_position('left', robotArm);
             end
             robotArm.setPositionModeSpeed(0.3);
-            
-            robotPeripheries.openGripper('l');
+            robotArm.removeAttachedObject('left_gripper', '')
+
+            %robotPeripheries.openGripper('l');
             pause(1);
-            % move the lefthand backward and downward to avoid collision
+            %% move the lefthand backward and downward to avoid collision
             % into the microwave oven door
             base2left = robotPeripheries.lookUptransforms('/base', ...
                 '/left_hand');
@@ -506,31 +507,41 @@ for i = 4:4
                 robotArm.setJointCommand('left', leftqs_b);
             end
             pause(0.5);
-            while ~prod(robotArm.joint_velocities < 0.05); end
+            while ~prod(abs(robotArm.joint_velocities) < 0.05); end
             pause(1.5);
             
+            %% move the arm in front of the fridge
+            % do not ues setJointCommand any more
+            robotArm.setControlMode(uint8(1));
+            leftqs_fridge = robotArm.solveIKfast(fridge_door_pos, fridge_door_ori, 'left');
+            robotArm.moveitSetJointCommand('left', leftqs_fridge);
+            pause(0.5);
+            while ~prod(abs(robotArm.joint_velocities) < 0.05); end
+            pause(3);
+            
+            %% 
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% 6: detect the food container %%%%%%%%%%%%%%%%%%%%%%
-            if ~isempty(leftqs)
-                % try to place left hand in front of the fridge
-                robotArm.setJointCommand('left', leftqs);
-            end
-            pause(1);
-            while ~prod(robotArm.joint_velocities < 0.01); end
-            pause(2);
+%             if ~isempty(leftqs)
+%                 % try to place left hand in front of the fridge
+%                 robotArm.setJointCommand('left', leftqs);
+%             end
+%             pause(1);
+%             while ~prod(robotArm.joint_velocities < 0.01); end
+%             pause(2);
             
             % detection
-            system('say "look"');
+            %system('say "look"');
             arTagposes_l = leftCamera.ARtag_Detection();
             if isempty(arTagposes_l)
                 system('spd-say "no tag detected"');
-                continue;
+                %continue;
             end
 
             index_t = find(arTagposes_l.ids == 6); % thing tag
             if isempty(index_t)
                 system('spd-say "nothing detected"');
-                continue;
+                %continue;
             end
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -541,7 +552,37 @@ for i = 4:4
             Hbase2leftcam = quat2tform([base2leftcam.quaternion(4); ...
                 base2leftcam.quaternion(1:3)]');
             Hbase2leftcam(1:3,4) = base2leftcam.position;
+% get base to left hand camera transform
+            base2leftcam = robotPeripheries.lookUptransforms('/base', ...
+                '/left_hand_camera');
+            Hbase2leftcam = quat2tform([base2leftcam.quaternion(4); ...
+                base2leftcam.quaternion(1:3)]');
+            Hbase2leftcam(1:3,4) = base2leftcam.position;
 
+            % receive the transform from left hand to tag 
+            left2tag = reshape(arTagposes_l.tmats((index_t-1)*16+1: index_t*16), 4, 4);
+            bias_l = axang2tform([0 1 0 pi]) * axang2tform([0 0 1 pi]);
+            bias_l(1:3,4) = [0 -0.02 0.1]';
+            
+            % We are gonna move the hand to the container
+            base2tag = Hbase2leftcam * left2tag * bias_l;
+            position = base2tag(1:3,4);
+            orientation = rotm2quat(base2tag(1:3,1:3))';
+
+            % solve IK for joint angles that move the gripper to the food
+            % thing
+            robotArm.setPositionModeSpeed(0.15);
+            leftqs2 = robotArm.solveIKfast(position, orientation, 'left');
+            if ~isempty(leftqs2)
+                robotArm.setJointCommand('left', leftqs2);
+            end
+            pause(2);
+            robotPeripheries.closeGripper('l');
+            while ~prod(robotArm.joint_velocities < 0.01); end
+            pause(2);
+            robotPeripheries.closeGripper('l');
+            pause(1);
+            robotArm.setPositionModeSpeed(0.3);
             % receive the transform from left hand to tag 
             left2tag = reshape(arTagposes_l.tmats((index_t-1)*16+1: index_t*16), 4, 4);
             bias_l = axang2tform([0 1 0 pi]) * axang2tform([0 0 1 pi]);

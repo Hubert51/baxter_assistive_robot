@@ -16,7 +16,7 @@ function [ ] = add_fridge(robotArm, H_matrix )
     %joint_names = robotArm.joint_names;
     %attached_joint = joint_names(7);
     temp_center_x = center_x - 0.5 * depth;
-    robotArm.addBox('fridge_front', [0.01; width; height], [temp_center_x; center_y; center_z]);
+    robotArm.addBox('fridge_front', [0.07; width; height], [temp_center_x; center_y; center_z]);
     robotArm.attachBox('right_gripper', 'fridge_front');
     
     % left
