@@ -25,6 +25,8 @@ rightCamera.openCamera();
 leftCamera.openCamera();
 pause(3.5); 
 
+robotPeripheries.closeGripper('l');
+
 load('/home/cats/Douglas Robots/cameraparams_right.mat');
 load('/home/cats/Douglas Robots/cameraparams_left.mat');
 rightCamera.setCameraIntrinsics(cameraparams_right);
@@ -378,8 +380,8 @@ for i = 4:4
                 Hbase2headcam*moveforward_l;
             position = Hbase2headside_l(1:3,4);
             orientation = rotm2quat(Hbase2headside_l(1:3,1:3))';
-            leftqs_l = robotArm.solveIKfast(position, orientation, 'left');
-            robotArm.setJointCommand('left', leftqs_l);
+            leftqs_microwave = robotArm.solveIKfast(position, orientation, 'left');
+            robotArm.setJointCommand('left', leftqs_microwave);
 
             pause(0.5);
             while ~prod(robotArm.joint_velocities < 0.01); end
@@ -426,7 +428,7 @@ for i = 4:4
             robotPeripheries.closeGripper('l');
             while ~prod(robotArm.joint_velocities < 0.03); end
             pause(1);
-            robotPeripheries.closeGripper('l');
+            % robotPeripheries.closeGripper('l');
             pause(1);
             add_microwave(robotArm, Hbase2leftcam * left2tag);
             
@@ -435,6 +437,7 @@ for i = 4:4
             % the process is divided into 12 parts
              %% the open fridge door algo
             robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
+            robotPeripheries.suck('l', uint8(100));
 
             fix_pos = robotArm.endeffector_positions;
             fix_pos = fix_pos(1:3);

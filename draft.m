@@ -35,6 +35,16 @@
 % pause(2);
 
 % system('say "look"');
+
+base2leftcam = robotPeripheries.lookUptransforms('base', '/left_hand_camera');
+q2 = base2leftcam.quaternion;
+%R2 = quat2rotm(q2')
+q2 = [q2(4); q2(1:3)]'
+R2 = quat2rotm(q2);
+R2 * [0; 1; 0]
+
+
+
 arTagposes_l = leftCamera.ARtag_Detection();
 if isempty(arTagposes_l)
     system('spd-say "no tag detected"');
