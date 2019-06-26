@@ -2,16 +2,18 @@ function [ result ] = checkObstacle(robotArm, robotPeripheries, side )
 %UNTITLED2 Summary of this function goes here
 %   Detailed explanation goes here
 
+gripper_len = 0.06;
+
 result1 = robotPeripheries.getRangerValue(side);
 result11 = robotArm.IR_values;
-disp(result1)
+
 side_camera = strcat( '/', side, '_hand_camera' );
 my_base2cam = robotPeripheries.lookUptransforms('base', side_camera);
 q2 = my_base2cam.quaternion;
 q2 = [q2(4); q2(1:3)]';
 R2 = quat2rotm(q2);
 p = R2 * [0; 1; 0];
-p = -p * 0.06;
+p = -p * gripper_len;
 
 pos = robotArm.endeffector_positions;
 pos = pos(1:3) + p;
