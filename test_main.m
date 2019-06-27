@@ -425,7 +425,6 @@ for i = 4:4
                 robotArm.setJointCommand('left', leftqs_m);
             end
             pause(1);
-            robotPeripheries.closeGripper('l');
             while ~prod(robotArm.joint_velocities < 0.03); end
             pause(1);
             % robotPeripheries.closeGripper('l');
@@ -492,8 +491,10 @@ for i = 4:4
             robotArm.setPositionModeSpeed(0.3);
             robotArm.removeAttachedObject('left_gripper', '')
 
-            %robotPeripheries.openGripper('l');
+            robotPeripheries.openGripper('l');
+            while ~prod(robotPeripheries.vacuum_sensor_value < 20); end
             pause(1);
+            
             %% move the lefthand backward and downward to avoid collision
             % into the microwave oven door
             base2left = robotPeripheries.lookUptransforms('/base', ...
@@ -565,7 +566,7 @@ for i = 4:4
             % receive the transform from left hand to tag 
             left2tag = reshape(arTagposes_l.tmats((index_t-1)*16+1: index_t*16), 4, 4);
             bias_l = axang2tform([0 1 0 pi]) * axang2tform([0 0 1 pi]);
-            bias_l(1:3,4) = [0 -0.02 0.1]';
+            bias_l(1:3,4) = [0 -0.02 0]';
             
             % We are gonna move the hand to the container
             base2tag = Hbase2leftcam * left2tag * bias_l;
@@ -601,7 +602,7 @@ for i = 4:4
             robotArm.setPositionModeSpeed(0.15);
             leftqs2 = robotArm.solveIKfast(position, orientation, 'left');
             if ~isempty(leftqs2)
-                robotArm.setJointCommand('left', leftqs2);
+                robotArm.moveitSetJointCommand('left', leftqs2);
             end
             pause(2);
             robotPeripheries.closeGripper('l');

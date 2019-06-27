@@ -36,6 +36,58 @@
 
 % system('say "look"');
 
+%% rotate the arm
+offset = 0;
+position = robotArm.endeffector_positions;
+
+position = position(4:6);
+
+base2right = robotPeripheries.lookUptransforms('/base', ...
+                    '/right_hand');
+Hbase2right = quat2tform([base2right.quaternion(4); ...
+    base2right.quaternion(1:3)]');
+Hbase2right(1:3,4) = base2right.position;
+
+%                 original parameter
+base2handle = Hbase2right * ...
+    [axang2rotm([0 1 0 deltaTheta]), ...
+    [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)+offset]'; ...
+    0 0 0 1];
+
+% new parameter
+%                 base2handle = Hbase2right * ...
+%                     [axang2rotm([0 1 0 deltaTheta]), ...
+%                     [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)]'; ...
+%                     0 0 0 1];
+
+% the position from homogenous transformation
+% position_temp = base2handle(1:3,4);
+orientation_temp = rotm2quat(base2handle(1:3,1:3))';
+
+% each part requires an IK 
+rightqs_temp = robotArm.solveIKfast(position, ...
+    orientation_temp, 'right');
+if ~isempty(rightqs_temp)
+    robotArm.moveitSetJointCommand('right', rightqs_temp);
+end
+
+%% explore twist and wrench
+while 1
+    wrenches = robotArm.endeffector_wrenches;
+    wrenches = wrenches(7:12);
+
+    position = robotArm.endeffector_positions;
+    position = position(4:6);
+    
+
+    cross(position, wrenches(4:6));
+    wrenches(4:6)
+    pause(0.3)
+end
+return
+
+%%
+
 base2leftcam = robotPeripheries.lookUptransforms('base', '/left_hand_camera');
 q2 = base2leftcam.quaternion;
 %R2 = quat2rotm(q2')
