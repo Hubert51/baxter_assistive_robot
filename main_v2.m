@@ -63,7 +63,7 @@ deltaTheta = 10/180*pi;
 
 deltaAlpha = -pi/2/12;
 robotArm.setPositionModeSpeed(0.3);
-r = 0.35; % The radius of the fridge door
+r = 0.36; % The radius of the fridge door
 r_m = 0.295;
 r_microwave = 0.295; % radius of the microwave door
 
@@ -263,15 +263,16 @@ for i = 4:4
 %             robotPeripheries.closeGripper('r');
 %             pause(1);
 %             
+%%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%% 3: close the gripper and open the door %%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%% 3: close the gripper and open the fridge door %%%%%%%%%%
             % tear down the process of drawing an arc into nine parts
             robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
             fix_pos = robotArm.endeffector_positions;
             fix_pos = fix_pos(4:6);
             old_joint_pos = robotArm.joint_positions;
             offset = 0;
-            for j = 1:9
+            for j = 1:11
                 robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
                 if j == 1
                     robotArm.setPositionModeSpeed(0.09); % slowly (unnecessary...)
@@ -363,7 +364,8 @@ for i = 4:4
             pause(0.5);
             while ~prod(robotArm.joint_velocities < 0.05); end
             pause(0.5);
-            
+
+%%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%% 4: move left hand to detect the microwave door %%%%%%%%%%%%%
             % place left hand in front of the head camera
