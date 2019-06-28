@@ -1,8 +1,7 @@
-function [  ] = moveBack( robotPeripheries, robotArm )
+function [  ] = moveBack( robotPeripheries, robotArm, side )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
-side = 'right';
 step_size = 0.03;
 side_camera = strcat( '/', side, '_hand_camera' );
 my_base2cam = robotPeripheries.lookUptransforms('base', side_camera);
@@ -12,6 +11,7 @@ R2 = quat2rotm(q2);
 % in the zero configuration, [0 0 1] is moving end_effector towards the
 % direction of gripper.
 p = R2 * [0; 0; -1];
+
 p = p * step_size;
 
 pos = robotArm.endeffector_positions;
