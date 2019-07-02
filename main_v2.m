@@ -19,8 +19,6 @@ rightCamera.openCamera();
 leftCamera.openCamera();
 pause(3.5); 
 
-robotPeripheries.closeGripper('l');
-
 load('/home/cats/Douglas Robots/cameraparams_right.mat');
 load('/home/cats/Douglas Robots/cameraparams_left.mat');
 load('Hubert.mat')
@@ -46,6 +44,7 @@ load('/home/cats/Douglas Robots/left_init.mat');
 load('/home/cats/Douglas Robots/right_init.mat');
 
 % initial position affects the result of IK during the process a lot...
+robotArm.setPositionModeSpeed(0.3);
 robotArm.setJointCommand('left', left);
 robotArm.setJointCommand('right', right);
 
@@ -112,7 +111,7 @@ for i = 4:4
         continue;
     end
     disp(arTagposes.ids)
-    index_f = find(arTagposes.ids == 5); % fridge handle
+    index_f = find(arTagposes.ids == 5); % upper fridge handle
     if isempty(index_f)
         continue
     end
@@ -166,103 +165,12 @@ for i = 4:4
     add_fridge(robotArm, Hbase2rightcam * right2tag);
 
     tempPos = robotArm.endeffector_positions;
-    
-    %     position(3) = position(3) + 0.005;
-    %     rightqs = robotArm.solveIKfast(position, orientation, 'right');
-    %     robotArm.setJointCommand('right', rightqs);
-    %     pause(0.5)
-    %     position(3) = position(3) - 0.01;
-    %     rightqs = robotArm.solveIKfast(position, orientation, 'right');
-    %     robotArm.setJointCommandHbase2headside('right', rightqs);
-    %     pause(0.5)
-    %     position(3) = position(3) + 0.005;
-    %     rightqs = robotArm.solveIKfast(position, orientation, 'right');
-    %     robotArm.setJointCommand('right', rightqs);        
-    %     pause(0.5)
-    
-    %% check right hand hold the door
-    % move left camera
-%     load('important_data.mat', 'obv_pos')
-%     load('important_data.mat', 'obv_ori')
-%     
-%     leftqs_check = robotArm.solveIKfast(obv_pos, obv_ori, 'left');
-%     robotArm.setJointCommand('left', leftqs_check);        
-%     pause(3)
-%     
-% 
-%     
-%     load('Hubert.mat', 'record');
-%     % to move arm bu user
-%     % moveArm(robotArm, 'right')
-%     followPath(robotArm, record );
-%     
-%     record = zeros(14,100);
-%     
-%     % move left hand to the front of fridge
-%     front_fridge_ori = orientation;
-%     % front_fridge_ori(1:4) = [ 0.7189; -0.0079; 0.6934; -0.0473 ];
-%     left_front_fridge_qs = robotArm.solveIKfast(front_fridge_pos, front_fridge_ori, 'left');
-%     robotArm.setJointCommand('left', left_front_fridge_qs);
-%     load( 'detection.mat', 'record' );
-%     ArTags = searchFood( leftCamera, robotArm, record );
-%     getFood(robotArm, robotPeripheries, ArTags, 'left');
+    adjustPose( robotArm, 'right', [1; 1; 1] );
+    % force control algorithm
+    % doorOperation( robotPeripheries, robotArm, -1 );   
 
-    
-%     for i = 1:100
-%         pause(0.2);
-%         record(:,i) = robotArm.joint_positions;
-%     end
-%     disp(record)
-    %%Hubert test
-%     
-%     
-%     rightqs1 = robotArm.solveIKfast(position, orientation, 'right');
-%     while isempty(rightqs1)
-%     % solve IK for joint angles that move the gripper to the fridge handle
-%         rightqs1 = calculate_IK(rightCamera, robotArm, robotPeripheries);
-%         pause(1);
-%     end
-%     
-%     % we need to put left hand in front of the fridge before taking things
-%     % out. Calculate the joint angles.
-%     biasl = axang2tform([0 1 0 pi]);
-%     biasl(1:3, 4) = [-0.1 0.1 0.19]';
-%     biasl = biasl * axang2tform([0 0 1 pi]);
-%     base2tagl = Hbase2rightcam * right2tag * biasl;
-%     positionl = base2tagl(1:3,4);
-%     orientationl = rotm2quat(base2tagl(1:3,1:3))';
-%     
-%     % solve IK for joint angles that move the vacuum on left hand in front 
-%     % of the fridge
-%     leftqs = robotArm.solveIKfast(positionl, orientationl, 'left');
-%     disp(rightqs1)
-     if 1
-%      if ~isempty(rightqs1)
-%         % move right hand in front of the handle
-%         robotArm.setJointCommand('right', rightqs1);
-%         pause(1);
-%         while ~prod(robotArm.joint_velocities < 0.1); end
-%         pause(0.5);
-%         
-%         % push the right hand forward a little bit to grip the handle
-%         base2right = robotPeripheries.lookUptransforms('/base', ...
-%             '/right_hand');
-%         Hbase2right = quat2tform([base2right.quaternion(4); ...
-%             base2right.quaternion(1:3)]');
-%         Hbase2right(1:3,4) = base2right.position;
-%         base2handle = Hbase2right * [eye(3), [0 0 0.2]'; 0 0 0 1];
-%         position2 = base2handle(1:3,4);
-%         orientation2 = rotm2quat(base2handle(1:3,1:3))';
-%         rightqs2 = robotArm.solveIKfast(position2, orientation2, 'right');
-       if 2
-%          if ~isempty(rightqs2)
-%             robotArm.setJointCommand('right', rightqs2);
-%             pause(0.5);
-%             while ~prod(robotArm.joint_velocities < 0.05); end
-%             pause(0.5);
-%             robotPeripheries.closeGripper('r');
-%             pause(1);
-%             
+    if 1
+        if 2
 %%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%% 3: close the gripper and open the fridge door %%%%%%%%%%
@@ -286,17 +194,11 @@ for i = 4:4
                     base2right.quaternion(1:3)]');
                 Hbase2right(1:3,4) = base2right.position;
                 
-%                 original parameter
+                % original parameter
                 base2handle = Hbase2right * ...
                     [axang2rotm([0 1 0 deltaTheta]), ...
                     [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)+offset]'; ...
                     0 0 0 1];
-                
-                % new parameter
-%                 base2handle = Hbase2right * ...
-%                     [axang2rotm([0 1 0 deltaTheta]), ...
-%                     [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)]'; ...
-%                     0 0 0 1];
                 position_temp = fix_pos + [-r*(sin(deltaTheta*j)); -r*(1-cos(deltaTheta*j)); 0];
 
                 % the position from homogenous transformation
