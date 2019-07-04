@@ -13,7 +13,13 @@ function [ output_args ] = doorOperationPosition( robotPeripheries, robotArm, si
 %     else
 %         contrinue
 
-
+if nargin > 3
+  dir = dir;
+else
+  dir = -1;
+end
+deltaTheta = 10/180*pi;
+r = 0.375; % The radius of the fridge door
 robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
 fix_pos = robotArm.endeffector_positions;
 fix_pos = fix_pos(4:6);
@@ -21,48 +27,76 @@ old_joint_pos = robotArm.joint_positions;
 offset = 0;
 my_hand =  strcat( '/', side, '_hand' );
 
-for j = 1:11
+for j = 1:9
     robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
     if j == 1
         robotArm.setPositionModeSpeed(0.09); % slowly (unnecessary...)
     end
     joint_pos = robotArm.getJointPositions(side);
-    % 3X1 of position and 4*1 of quaternion
-    base2right = robotPeripheries.lookUptransforms('/base', my_hand);
-    Hbase2right = quat2tform([base2right.quaternion(4); ...
-        base2right.quaternion(1:3)]');
-    Hbase2right(1:3,4) = base2right.position;
+    
+    % the orientation only changes when in first 9 iteration which is 
+    % 90 degree
+    if j < 10
+        % 3X1 of position and 4*1 of quaternion
+        % base2right = robotPeripheries.lookUptransforms('/base', my_hand);
+        Rbase2right = quat2rotm(robotArm.getOrientations(side)');
 
-    % original parameter
-    base2handle = Hbase2right * ...
-        [axang2rotm([0 1 0 deltaTheta]), ...
-        [-r*(1-cos(deltaTheta)) 0 r*sin(deltaTheta)+offset]'; ...
-        0 0 0 1];
-    position_temp = fix_pos + [-r*(sin(deltaTheta*j)); -r*(1-cos(deltaTheta*j)); 0];
+        % original parameter
+        if dir == -1
+            base2handle = Rbase2right * axang2rotm([0 1 0 deltaTheta]);
+            position_temp = fix_pos + [-r*(sin(deltaTheta*j)); -r*(1-cos(deltaTheta*j)); 0];
+        elseif dir == 1
+            base2handle = Rbase2right * axang2rotm([0 -1 0 deltaTheta]);
+            position_temp = fix_pos + [r*(1-cos(deltaTheta*(j))); r*(sin(deltaTheta*(j) )); 0];
+        end
 
-    % the position from homogenous transformation
-    % position_temp = base2handle(1:3,4);
-    orientation_temp = rotm2quat(base2handle(1:3,1:3))';
+
+        % the position from homogenous transformation
+        % position_temp = base2handle(1:3,4);
+        orientation_temp = rotm2quat(base2handle(1:3,1:3))';
+        
+    else
+        R2 = quat2rotm(robotArm.getOrientations(side)');
+        % in the zero configuration, [0 0 1] is moving end_effector towards the
+        % direction of gripper.
+        p = R2 * [0; 0; -1];
+        position_temp = robotArm.getPositions(side) + 0.5 * p;
+    end
 
     % each part requires an IK 
     rightqs_temp = robotArm.solveIKfast(position_temp, ...
         orientation_temp, side);
-    joint_diff = rightqs_temp - joint_pos;
 
     % this section try to make the opening door more smoothly.
     % if the joint angle changes largely, the code will
     % calculate another target position and recalculate the
     % inverse kinematics.
-    temp_offset = 0;
-    while ~isempty(find( abs(joint_diff) > 0.7, 1))
-        leftqs_temp = robotArm.solveIKfast(position_temp, ...
-        orientation_temp, 'left');
-        position_temp = position + (rand(3,1)/500 - 0.001);
-        joint_diff = leftqs_temp - joint_pos;
+    count = 0;
+    while isempty(rightqs_temp) || ~isempty(find( abs(rightqs_temp - joint_pos) > 0.7, 1))
+        rightqs_temp = robotArm.solveIKfast(position_temp, ...
+        orientation_temp, 'right');
+        if ~isempty(rightqs_temp)
+            robotArm.setJointCommand(side, rightqs_temp);
+            pause(0.3)
+            while ~prod( abs(robotArm.joint_velocities) < 0.06); 
+                if  ~prod(abs(robotArm.getForces('right')) < 13)
+                    robotArm.setJointCommand(side, joint_pos);
+                    rightqs_temp = [];
+                    break
+                end
+            end
+            if (abs(robotArm.getJointPositions(side) -rightqs_temp )<=0.3)
+                break
+            end
+        end
+        position_temp = position_temp + (rand(3,1)/50 - 0.01);
         disp 'recalculate trajectory';
+        count = count + 1;
+        if count == 20
+            break
+        end
     end
     % to give the offset back the system in next iteration.
-    offset = -temp_offset;
 
     if ~isempty(rightqs_temp)
         robotArm.setJointCommand(side, rightqs_temp);
@@ -73,8 +107,31 @@ for j = 1:11
     % real_pos = robotArm.endeffector_positions;
     % pos_diff = position_temp - real_pos(4:6)
     % torque = torque(8:14)
-    % pause(0.3);
-
+    pause(0.3);
+    force = robotArm.getForces(side);
+    if force > 10
+        break;
+    end    
     reset_position(side, robotArm);
+
 end
+
+if dir == 1
+    force = robotArm.getForces(side);
+    i = 0;
+    while i == 0 || force(1) < 9
+        i = 1;
+        position_temp = robotArm.getPositions(side) + rand() * [0.05; 0; 0];
+        rightqs_temp = robotArm.solveIKfast(position_temp, ...
+            orientation_temp, side);
+        if ~isempty(rightqs_temp)
+            robotArm.setJointCommand(side, rightqs_temp);
+            pause(0.3)
+            while ~prod( abs(robotArm.joint_velocities) < 0.06); end
+            pause(0.3)
+        end
+        force = robotArm.getForces(side);   
+    end
+end
+reset_position(side, robotArm);
 robotArm.setPositionModeSpeed(0.3);
