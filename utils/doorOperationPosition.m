@@ -1,9 +1,9 @@
-function [ output_args ] = doorOperationPosition( robotPeripheries, robotArm, side, dir )
+function [ output_args ] = doorOperationPosition(robotArm, radius, side, dir )
 %UNTITLED2 Summary of this function goes here
 %   Detailed explanation goes here
 
-% dir: -1 is open the door
-%      1 close the door
+% dir: -1 is close the door
+%      1 open the door
 
 % while True:
 %     move the door
@@ -12,23 +12,55 @@ function [ output_args ] = doorOperationPosition( robotPeripheries, robotArm, si
 %         rotate the gripper
 %     else
 %         contrinue
+k = {'left', 'l', 'right', 'r'};
+v = {-1, -1, 1, 1};
+side_flag = containers.Map(k, v);
 
 if nargin > 3
   dir = dir;
 else
-  dir = -1;
+  dir = 1;
 end
-deltaTheta = 10/180*pi;
-r = 0.375; % The radius of the fridge door
+deltaTheta = 10/180*pi * side_flag(side);
+r = radius; % The radius of the fridge door
 robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
-fix_pos = robotArm.endeffector_positions;
-fix_pos = fix_pos(4:6);
+fix_pos = robotArm.getPositions(side);
 old_joint_pos = robotArm.joint_positions;
 offset = 0;
 my_hand =  strcat( '/', side, '_hand' );
+k = {'left', 'l', 'right', 'r'};
+v = {-1, -1, 1, 1};
+side_flag = containers.Map(k, v);
 
-for j = 1:9
-    robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
+robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
+if dir == -1
+    q2 = robotArm.getOrientations(side);
+    R2 = quat2rotm(q2');
+    % in the zero configuration, [0 0 1] is moving end_effector towards the
+    % direction of gripper.
+    p = R2 * [0; 0; -1] * 0.03 * dir;
+    force = robotArm.getForces(side);
+    i = 0;
+    while i < 5  && ( prod(abs(force) < 8) )
+        i = i + 1;
+        position_temp = robotArm.getPositions(side) + p;
+        rightqs_temp = robotArm.solveIKfast(position_temp, ...
+            robotArm.getOrientations(side), side);
+        if ~isempty(rightqs_temp)
+            robotArm.setJointCommand(side, rightqs_temp);
+            pause(0.3)
+            while ~prod( abs(robotArm.joint_velocities) < 0.06); end
+            pause(0.3)
+        end
+        force = robotArm.getForces(side);   
+    end
+end
+
+
+fix_pos = robotArm.getPositions(side);
+j = 0;
+while j < 9
+    j = j + 1;
     if j == 1
         robotArm.setPositionModeSpeed(0.09); % slowly (unnecessary...)
     end
@@ -42,14 +74,14 @@ for j = 1:9
         Rbase2right = quat2rotm(robotArm.getOrientations(side)');
 
         % original parameter
-        if dir == -1
-            base2handle = Rbase2right * axang2rotm([0 1 0 deltaTheta]);
-            position_temp = fix_pos + [-r*(sin(deltaTheta*j)); -r*(1-cos(deltaTheta*j)); 0];
-        elseif dir == 1
-            base2handle = Rbase2right * axang2rotm([0 -1 0 deltaTheta]);
+        if dir == 1
+            base2handle = Rbase2right * axang2rotm([0 dir 0 deltaTheta]);
+            p = [-r*(sin(deltaTheta*j)); -r*(1-cos(deltaTheta*j)); 0];
+            position_temp = fix_pos + p*side_flag(side);
+        elseif dir == -1
+            base2handle = Rbase2right * axang2rotm([0 dir 0 deltaTheta]);
             position_temp = fix_pos + [r*(1-cos(deltaTheta*(j))); r*(sin(deltaTheta*(j) )); 0];
         end
-
 
         % the position from homogenous transformation
         % position_temp = base2handle(1:3,4);
@@ -60,7 +92,7 @@ for j = 1:9
         % in the zero configuration, [0 0 1] is moving end_effector towards the
         % direction of gripper.
         p = R2 * [0; 0; -1];
-        position_temp = robotArm.getPositions(side) + 0.5 * p;
+        position_temp = robotArm.getPositions(side) + 0.2 * p;
     end
 
     % each part requires an IK 
@@ -73,29 +105,38 @@ for j = 1:9
     % inverse kinematics.
     count = 0;
     while isempty(rightqs_temp) || ~isempty(find( abs(rightqs_temp - joint_pos) > 0.7, 1))
+        % since here we need to make sure the arm will stop and go back if
+        % if large force on the arm.
+        robotArm.setPositionModeSpeed(0.09);
         rightqs_temp = robotArm.solveIKfast(position_temp, ...
-        orientation_temp, 'right');
-        if ~isempty(rightqs_temp)
+        orientation_temp, side);
+        if ~isempty(rightqs_temp) && ~isempty(find( abs(rightqs_temp - joint_pos) > 0.7, 1))
             robotArm.setJointCommand(side, rightqs_temp);
             pause(0.3)
             while ~prod( abs(robotArm.joint_velocities) < 0.06); 
-                if  ~prod(abs(robotArm.getForces('right')) < 13)
+                if  ~prod(abs(robotArm.getForces(side)) < 13)
                     robotArm.setJointCommand(side, joint_pos);
                     rightqs_temp = [];
                     break
                 end
             end
-            if (abs(robotArm.getJointPositions(side) -rightqs_temp )<=0.3)
+            if ~isempty(rightqs_temp) && prod(abs(robotArm.getJointPositions(side) -rightqs_temp )<=0.3)
                 break
             end
         end
         position_temp = position_temp + (rand(3,1)/50 - 0.01);
         disp 'recalculate trajectory';
-        count = count + 1;
-        if count == 20
-            break
+        count = count + 1
+        if count >= 15 
+            orientation_temp = robotArm.getOrientations(side);
+            if count == 15
+                j = j - 1;
+            end
+        elseif count == 30
+            input('Need help!')
         end
     end
+    robotArm.setPositionModeSpeed(0.15);
     % to give the offset back the system in next iteration.
 
     if ~isempty(rightqs_temp)
@@ -108,30 +149,37 @@ for j = 1:9
     % pos_diff = position_temp - real_pos(4:6)
     % torque = torque(8:14)
     pause(0.3);
-    force = robotArm.getForces(side);
-    if force > 10
+    robotArm.getForces(side)
+    if ~prod(abs(robotArm.getForces(side)) < 13) && j > 5
+        reset_position(side, robotArm);
         break;
     end    
     reset_position(side, robotArm);
 
 end
 
-if dir == 1
-    force = robotArm.getForces(side);
-    i = 0;
-    while i == 0 || force(1) < 9
-        i = 1;
-        position_temp = robotArm.getPositions(side) + rand() * [0.05; 0; 0];
-        rightqs_temp = robotArm.solveIKfast(position_temp, ...
-            orientation_temp, side);
-        if ~isempty(rightqs_temp)
-            robotArm.setJointCommand(side, rightqs_temp);
-            pause(0.3)
-            while ~prod( abs(robotArm.joint_velocities) < 0.06); end
-            pause(0.3)
-        end
-        force = robotArm.getForces(side);   
+q2 = robotArm.getOrientations(side);
+R2 = quat2rotm(q2');
+% in the zero configuration, [0 0 1] is moving end_effector towards the
+% direction of gripper.
+p = R2 * [0; 0; -1] * 0.03 * dir;
+% [0 0 1] is the axis of force of the direction of the gripper
+filter = R2 * [0; 0; 1];
+force = filter .* robotArm.getForces(side);
+i = 0;
+while i < 5 && ( prod(abs(force) < 9) )
+    i = i+1;
+    position_temp = robotArm.getPositions(side) + p;
+    rightqs_temp = robotArm.solveIKfast(position_temp, ...
+        orientation_temp, side);
+    if ~isempty(rightqs_temp)
+        robotArm.setJointCommand(side, rightqs_temp);
+        pause(0.3)
+        while ~prod( abs(robotArm.joint_velocities) < 0.06); end
+        pause(0.3)
     end
+    force = filter .* robotArm.getForces(side);   
 end
+
 reset_position(side, robotArm);
 robotArm.setPositionModeSpeed(0.3);

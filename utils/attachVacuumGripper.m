@@ -15,7 +15,7 @@ vacuum = robotPeripheries.vacuum_sensor_value;
 vacuum = vacuum(index);
 
 while vacuum < 70
-    disp(vacuum)
+    % disp(vacuum)
     side_camera = strcat( '/', side, '_hand_camera' );
     my_base2cam = robotPeripheries.lookUptransforms('base', side_camera);
     q2 = my_base2cam.quaternion;
@@ -30,7 +30,9 @@ while vacuum < 70
     pos = pos(1:3) + p;
     ori = robotArm.endeffector_orientations;
     my_qs = robotArm.solveIKfast(pos, ori, side);
-    robotArm.setJointCommand(side, my_qs);
+    if ~isempty(my_qs)
+        robotArm.setJointCommand(side, my_qs);
+    end
     pause(0.5);
     while ~prod(abs(robotArm.joint_velocities) < 0.05); end
     pause(1);
