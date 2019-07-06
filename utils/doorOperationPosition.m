@@ -49,7 +49,7 @@ if dir == -1
         if ~isempty(rightqs_temp)
             robotArm.setJointCommand(side, rightqs_temp);
             pause(0.3)
-            while ~prod( abs(robotArm.joint_velocities) < 0.06); end
+            while ~prod( abs(robotArm.getJointVelocities(side)) < 0.06); end
             pause(0.3)
         end
         force = robotArm.getForces(side);   
@@ -113,8 +113,9 @@ while j < 9
         if ~isempty(rightqs_temp) && ~isempty(find( abs(rightqs_temp - joint_pos) > 0.7, 1))
             robotArm.setJointCommand(side, rightqs_temp);
             pause(0.3)
-            while ~prod( abs(robotArm.joint_velocities) < 0.06); 
-                if  ~prod(abs(robotArm.getForces(side)) < 13)
+            robotArm.getForces(side)
+            while ~prod( abs(robotArm.getJointVelocities(side)) < 0.06); 
+                if  ~prod(abs(robotArm.getForces(side)) < 11)
                     robotArm.setJointCommand(side, joint_pos);
                     rightqs_temp = [];
                     break
@@ -143,7 +144,7 @@ while j < 9
         robotArm.setJointCommand(side, rightqs_temp);
     end
     pause(0.3);
-    while ~prod( abs(robotArm.joint_velocities) < 0.06); end
+    while ~prod( abs(robotArm.getJointVelocities(side)) < 0.06); end
     % torque = robotArm.joint_torques;
     % real_pos = robotArm.endeffector_positions;
     % pos_diff = position_temp - real_pos(4:6)
@@ -175,11 +176,11 @@ while i < 5 && ( prod(abs(force) < 9) )
     if ~isempty(rightqs_temp)
         robotArm.setJointCommand(side, rightqs_temp);
         pause(0.3)
-        while ~prod( abs(robotArm.joint_velocities) < 0.06); end
+        while ~prod( abs(robotArm.getJointVelocities(side)) < 0.06); end
         pause(0.3)
     end
     force = filter .* robotArm.getForces(side);   
 end
 
 reset_position(side, robotArm);
-robotArm.setPositionModeSpeed(0.3);
+robotArm.setPositionModeSpeed(0.15);
