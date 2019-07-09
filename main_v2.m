@@ -5,7 +5,10 @@
 
 %% initialize all the parameter and device
 % connecting to robotRR bridges
-
+a = struct;
+a.pos = [1 2 3]';
+a.ori = [1 2 3 4]';
+c = {a; a};
 robotArm = RobotRaconteur.Connect('tcp://localhost:2345/BaxterJointServer/Baxter');
 rightCamera = RobotRaconteur.Connect('tcp://localhost:4567/BaxterCameraServer/right_hand_camera');
 leftCamera = RobotRaconteur.Connect('tcp://localhost:9087/BaxterCameraServer/left_hand_camera');
@@ -48,8 +51,6 @@ robotArm.setPositionModeSpeed(0.3);
 robotArm.setJointCommand('left', left);
 robotArm.setJointCommand('right', right);
 
-    
-
 % waiting for movements complete
 pause(1);
 while ~prod(abs(robotArm.joint_velocities) < 0.1); end
@@ -62,7 +63,7 @@ deltaTheta = 10/180*pi;
 
 deltaAlpha = -pi/2/12;
 robotArm.setPositionModeSpeed(0.3);
-r = 0.383; % The radius of the fridge door
+r = 0.387; % The radius of the fridge door
 r_m = 0.295;
 r_microwave = 0.295; % radius of the microwave door
 
@@ -94,8 +95,9 @@ for i = 4:4
     fridge_door_pos = Hbase2headside(1:3,4);
     fridge_door_ori = rotm2quat(Hbase2headside(1:3,1:3))';
     rightqs = robotArm.solveIKfast(fridge_door_pos, fridge_door_ori, 'right');
+    load('important.mat' );
     robotArm.setJointCommand('right', rightqs);
-    
+    rightqs_copy = rightqs;
     pause(0.5);
     while ~prod(robotArm.joint_velocities < 0.05); end
     pause(5);
@@ -111,9 +113,20 @@ for i = 4:4
         continue;
     end
     disp(arTagposes.ids)
+    % current jointPosition
+    searchFridge(arTagposes)
+    robotArm.setJointCommand('right', rightqs_copy);
+    pause(0.5)
+    while ~prod(abs(robotArm.joint_velocities) < 0.05); end
+    pause(0.5);
+    % 5 is upper fridge handle
+    % 0 is lower fridge handle
     index_f = find(arTagposes.ids == 5); % upper fridge handle
-    if isempty(index_f)
-        continue
+    while isempty(index_f)
+        arTagposes = rightCamera.ARtag_Detection();
+        index_f = find(arTagposes.ids == 5);
+        paus(0.3);
+        disp 'find front door tag'
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -153,7 +166,7 @@ for i = 4:4
     
     % the position of the area at the front of the fridge.
     % for left hand
-    front_fridge_pos = Hbase2headside(1:3,4) + [0.115; 0.055; 0];
+    front_fridge_pos = Hbase2headside(1:3,4) + [0.115; 0.06; 0];
     orientation = rotm2quat(base2tag(1:3,1:3))';
     robotArm.setControlMode(uint8(0));
     rightqs = robotArm.solveIKfast(position, orientation, 'right');
@@ -176,7 +189,16 @@ for i = 4:4
     robotArm.removeAttachedObject('right_gripper', '')
     % robotPeripheries.openGripper('r');
     pause(1);
+    demoMoveWater();
+    
+    robotArm.setPositionModeSpeed(0.15);
+    robotArm.setJointCommand('left', left);
+    doorOperationPosition(robotArm, r, 'right', -1)
 
+    pause(0.5);
+    while ~prod(abs(robotArm.joint_velocities) < 0.03); end
+    pause(1);
+    
     % move the righthand backward
     % base2right = robotPeripheries.lookUptransforms('/base', ...
     %     '/right_hand');
@@ -268,7 +290,7 @@ for i = 4:4
     %%%%%%%%%%%%%%%%%%%%% 5: open the microwave oven door %%%%%%%%%%%%%%%%%%%%%
     % the process is divided into 12 parts
     robotArm.setPositionModeSpeed(0.15); % slowly (unnecessary...)
-    doorOperationPosition(robotArm, r_m, 'left' )
+    % doorOperationPosition(robotArm, r_m, 'left' )
 
     fix_pos = robotArm.endeffector_positions;
     fix_pos = fix_pos(1:3);
