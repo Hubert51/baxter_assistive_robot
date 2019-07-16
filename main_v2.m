@@ -5,11 +5,8 @@
 
 %% initialize all the parameter and device
 % connecting to robotRR bridges
-a = struct;
-a.pos = [1 2 3]';
-a.ori = [1 2 3 4]';
-c = {a; a};
-robotArm = RobotRaconteur.Connect('tcp://localhost:2346/BaxterJointServer/Baxter');
+
+robotArm = RobotRaconteur.Connect('tcp://localhost:2345/BaxterJointServer/Baxter');
 rightCamera = RobotRaconteur.Connect('tcp://localhost:4567/BaxterCameraServer/right_hand_camera');
 leftCamera = RobotRaconteur.Connect('tcp://localhost:9087/BaxterCameraServer/left_hand_camera');
 robotPeripheries = RobotRaconteur.Connect('tcp://localhost:6708/BaxterPeripheralServer/BaxterPeripherals');
@@ -25,6 +22,7 @@ pause(3.5);
 load('/home/cats/Douglas Robots/cameraparams_right.mat');
 load('/home/cats/Douglas Robots/cameraparams_left.mat');
 load('Hubert.mat')
+load('RoadMap.mat')
 rightCamera.setCameraIntrinsics(cameraparams_right);
 leftCamera.setCameraIntrinsics(cameraparams_lefthand);
 
@@ -65,6 +63,7 @@ deltaAlpha = -pi/2/12;
 robotArm.setPositionModeSpeed(0.25);
 r = 0.387; % The radius of the fridge door
 r_m = 0.295;
+l_grip = 0.07;
 r_microwave = 0.295; % radius of the microwave door
 
 for i = 4:4
@@ -94,10 +93,10 @@ for i = 4:4
     % position and otientation before the fridge door
     fridge_door_pos = Hbase2headside(1:3,4);
     fridge_door_ori = rotm2quat(Hbase2headside(1:3,1:3))';
-    rightqs = robotArm.solveIKfast(fridge_door_pos, fridge_door_ori, 'right');
-    % load('important.mat' );
-    robotArm.setJointCommand('right', rightqs);
-    rightqs_copy = rightqs;
+    init_qs = robotArm.solveIKfast(fridge_door_pos, fridge_door_ori, 'right');
+    init_ptr = RoadMap('init_ptr');
+    robotArm.setJointCommand('right', init_ptr.qs);
+    rightqs_copy = init_qs;
     pause(0.5);
     while ~prod(robotArm.joint_velocities < 0.05); end
     pause(5);
@@ -121,53 +120,36 @@ for i = 4:4
     pause(0.5);
     % 5 is upper fridge handle
     % 0 is lower fridge handle
+    while( length(unique(arTagposes.ids))<3)
+        arTagposes = rightCamera.ARtag_Detection();
+        pause(0.3)
+    end
+    RoadMap, points = processRoadMap(RoadMap, arTagposes);
     index_f = find(arTagposes.ids == 5); % upper fridge handle
     while isempty(index_f)
         arTagposes = rightCamera.ARtag_Detection();
         index_f = find(arTagposes.ids == 5);
-        paus(0.3);
+        pause(0.3);
         disp 'find front door tag'
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%% 2: move the right hand to the door handle %%%%%%%%%%%%%%%%
-    % get base to right hand camera transform
-    base2rightcam = robotPeripheries.lookUptransforms('/base', ...
-        '/right_hand_camera');
-    Hbase2rightcam = quat2tform([base2rightcam.quaternion(4); ...
-        base2rightcam.quaternion(1:3)]');
-    Hbase2rightcam(1:3,4) = base2rightcam.position;
-    
     % receive the transform from right hand to tag 
-    right2tag = reshape(arTagposes.tmats((index_f-1)*16+1: index_f*16), ...
-        4, 4);
-    
-    % the position we are gonna put the hand in front of the handle has a 
-    % bias from the tag. 
-    bias = axang2tform([1 0 0 -pi]);
-    bias(1:3, 4) = [-0.1 -0.025 -0.045]';
-    bias = bias*axang2tform([0 0 1 pi])*axang2tform([1 0 0 -pi/36]);
-    base2tag = Hbase2rightcam * right2tag * bias;
-    
-    % add_fridge(robotArm, Hbase2rightcam * right2tag);
+    my_tmats = arTagposes.tmats((index_f-1)*16+1: index_f*16);
+    right2tag = reshape(my_tmats, 4, 4);
+    % transformation matrix for the coordinates
+    my_rotm = axang2tform([1 0 0 0.5*pi]) * axang2tform([0 1 0 -0.5*pi]);
+    base2tag = my_rotm * right2tag;
+    % the follow calculation is the orientation of current gripper
+    base2tag(1:3, 1:3) = axang2rotm([1 0 0 0.5*pi]) * base2tag(1:3, 1:3);
+    base2tag(1:3, 4) = -base2tag(1:3, 4) + robotArm.getPositions('r');
 
-
-     
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %%%%  debug  %%%%
-    %    testout = Hbase2rightcam * right2tag * ...
-    %        axang2tform([1 0 0 -pi/2]) * axang2tform([0 0 1 pi/2])
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-    % middle grib position
-    % position = base2tag(1:3,4) - [0.1201; 0.0058; 0.0627];
-    position = base2tag(1:3,4);
-
-    
+    position = base2tag(1:3,4) + [-l_grip; 0.07; -0.02];
+    orientation = rotm2quat(base2tag(1:3,1:3))';
     % the position of the area at the front of the fridge.
     % for left hand
     front_fridge_pos = Hbase2headside(1:3,4) + [0.115; 0.06; 0];
-    orientation = rotm2quat(base2tag(1:3,1:3))';
     robotArm.setControlMode(uint8(0));
     rightqs = robotArm.solveIKfast(position, orientation, 'right');
     robotArm.setJointCommand('right', rightqs);
