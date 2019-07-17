@@ -5,3 +5,5 @@
     it is at the approximately-correct position
 ## Something needs to mention
     The location of initialization files need to be specified in the main script
+## RobotRaconteur
+    Use RobotRaconteur to control the baxter robot. The matlab code is like a layer of interface. The actual control code is python code running with ros.
