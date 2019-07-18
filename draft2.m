@@ -1,3 +1,57 @@
+points = cell(1183,1);
+i = 1;
+for key = RoadMap.keys
+    part_map = RoadMap(char(key));
+    point = struct;
+    point.pos = part_map.pos;
+    point.ori = part_map.ori;
+    points{i} = point ;
+    i = i+1;
+end
+% point = RoadMap('init_ptr');
+% robotArm.setJointCommand('right', point.qs);
+% pause(1);
+% while ~prod(robotArm.joint_velocities < 0.03); end
+% pause(1);
+rightCamera = RobotRaconteur.Connect('tcp://localhost:4567/BaxterCameraServer/right_hand_camera');
+robotArm = RobotRaconteur.Connect('tcp://localhost:2345/BaxterJointServer/Baxter');
+arTagposes = rightCamera.ARtag_Detection();
+index_f = find(arTagposes.ids == 5);
+ori1 = robotArm.getOrientations('r');
+H1 = quat2tform(ori1');
+H1(1:3,4) = robotArm.getPositions('r');
+right2tag = reshape(arTagposes.tmats((index_f-1)*16+1: index_f*16), ...
+        4, 4);
+R1 = axang2tform([1 0 0 0.5*pi]) * axang2tform([0 1 0 -0.5*pi]);
+right2tag = R1 * right2tag;
+ori1 = rotm2quat(right2tag(1:3,1:3))';
+rightqs = robotArm.solveIKfast(robotArm.getPositions('r'), ori1, 'right');
+robotArm.setJointCommand('right', rightqs);
+
+
+right2tag(1:3,4) = - right2tag(1:3,4);
+base2tag = H1 * right2tag;
+position = base2tag(1:3,4) - [0.1 0 0]';
+orientation = rotm2quat(base2tag(1:3,1:3))';
+rightqs = robotArm.solveIKfast(position, ori1, 'right');
+robotArm.setJointCommand('right', rightqs);
+
+p1 = [0.0996; -0.1164; 0.3686];
+bias = axang2rotm([1 0 0 0.5*pi]) * axang2rotm([0 1 0 -0.5*pi]);
+
+
+
+Pose1.pos = robotArm.getPositions('r');
+Pose1.ori = robotArm.getOrientations('r');
+
+Pose2.pos = Pose1.pos + [0.1;0; -0.15];
+Pose2.ori = Pose1.ori;
+Pose = {Pose1; Pose2}';
+
+ori_final = robotArm.getOrientations('l')
+ori_init = [ -0.0027; 0.7184; 0.0193; 0.6953 ];
+RR = quat2rotm(ori_init') * rot([-0 -0  -1], 50*pi/180) ;
+rotm2quat(RR)
 
 side='right';
 Rbase2right = quat2rotm(robotArm.getOrientations(side)');

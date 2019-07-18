@@ -7,6 +7,7 @@
 % connecting to robotRR bridges
 
 robotArm = RobotRaconteur.Connect('tcp://localhost:2345/BaxterJointServer/Baxter');
+% robotArm.publishPoints(points)
 rightCamera = RobotRaconteur.Connect('tcp://localhost:4567/BaxterCameraServer/right_hand_camera');
 leftCamera = RobotRaconteur.Connect('tcp://localhost:9087/BaxterCameraServer/left_hand_camera');
 robotPeripheries = RobotRaconteur.Connect('tcp://localhost:6708/BaxterPeripheralServer/BaxterPeripherals');
@@ -66,6 +67,9 @@ r_m = 0.295;
 l_grip = 0.07;
 r_microwave = 0.295; % radius of the microwave door
 
+% roadmap construction
+
+
 for i = 4:4
     % looking for the tag
     headPan = (i-4)*pi/12;
@@ -93,10 +97,10 @@ for i = 4:4
     % position and otientation before the fridge door
     fridge_door_pos = Hbase2headside(1:3,4);
     fridge_door_ori = rotm2quat(Hbase2headside(1:3,1:3))';
-    init_qs = robotArm.solveIKfast(fridge_door_pos, fridge_door_ori, 'right');
+    % init_qs = robotArm.solveIKfast(fridge_door_pos, fridge_door_ori, 'right');
     init_ptr = RoadMap('init_ptr');
     robotArm.setJointCommand('right', init_ptr.qs);
-    rightqs_copy = init_qs;
+    rightqs_copy = init_ptr.qs;
     pause(0.5);
     while ~prod(robotArm.joint_velocities < 0.05); end
     pause(5);
@@ -124,7 +128,7 @@ for i = 4:4
         arTagposes = rightCamera.ARtag_Detection();
         pause(0.3)
     end
-    RoadMap, points = processRoadMap(RoadMap, arTagposes);
+    % RoadMap, points = processRoadMap(RoadMap, arTagposes);
     index_f = find(arTagposes.ids == 5); % upper fridge handle
     while isempty(index_f)
         arTagposes = rightCamera.ARtag_Detection();
@@ -157,7 +161,7 @@ for i = 4:4
     while ~prod(abs(robotArm.joint_velocities) < 0.05); end
     pause(1);
     robotPeripheries.closeGripper('r');
-    add_fridge(robotArm, Hbase2rightcam * right2tag);
+    add_fridge(robotArm, base2tag);
 
     tempPos = robotArm.endeffector_positions;
     adjustPose( robotArm, robotPeripheries, 'right', [1; 1; 1] );
