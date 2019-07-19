@@ -42,18 +42,18 @@ pause(1);
 
 % set joint angle control mode 
 robotArm.setControlMode(uint8(0));
-load('/home/cats/Douglas Robots/left_init.mat');
-load('/home/cats/Douglas Robots/right_init.mat');
+% load('/home/cats/Douglas Robots/left_init.mat');
+% load('/home/cats/Douglas Robots/right_init.mat');
 
 % initial position affects the result of IK during the process a lot...
 robotArm.setPositionModeSpeed(0.3);
-robotArm.setJointCommand('left', left);
-robotArm.setJointCommand('right', right);
+% robotArm.setJointCommand('left', left);
+% robotArm.setJointCommand('right', right);
 
 % waiting for movements complete
-pause(1);
-while ~prod(abs(robotArm.joint_velocities) < 0.1); end
-pause(0.5);
+% pause(1);
+% while ~prod(abs(robotArm.joint_velocities) < 0.1); end
+% pause(0.5);
 
 % some data
 % The process of opening the fridge door is divided into nine parts.
@@ -64,7 +64,7 @@ deltaAlpha = -pi/2/12;
 robotArm.setPositionModeSpeed(0.25);
 r = 0.387; % The radius of the fridge door
 r_m = 0.295;
-l_grip = 0.07;
+l_grip = 0.085;
 r_microwave = 0.295; % radius of the microwave door
 
 % roadmap construction
@@ -149,7 +149,7 @@ for i = 4:4
     base2tag(1:3, 1:3) = axang2rotm([1 0 0 0.5*pi]) * base2tag(1:3, 1:3);
     base2tag(1:3, 4) = -base2tag(1:3, 4) + robotArm.getPositions('r');
 
-    position = base2tag(1:3,4) + [-l_grip; 0.07; -0.02];
+    position = base2tag(1:3,4) + [-l_grip; 0.078; -0.02];
     orientation = rotm2quat(base2tag(1:3,1:3))';
     % the position of the area at the front of the fridge.
     % for left hand
@@ -161,7 +161,7 @@ for i = 4:4
     while ~prod(abs(robotArm.joint_velocities) < 0.05); end
     pause(1);
     robotPeripheries.closeGripper('r');
-    add_fridge(robotArm, base2tag);
+    %add_fridge(robotArm, base2tag);
 
     tempPos = robotArm.endeffector_positions;
     adjustPose( robotArm, robotPeripheries, 'right', [1; 1; 1] );
@@ -170,7 +170,12 @@ for i = 4:4
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%% 3: close the gripper and open the fridge door %%%%%%%%%%
     % tear down the process of drawing an arc into nine parts
-    doorOperationPosition(robotArm, r, 'right')
+    robotArm.setControlMode(uint8(3));
+    robotArm.setPositionModeSpeed(0.05);
+
+    doorOperationPosition2(robotArm, r, 'right')
+    doorOperationPosition2(robotArm, r, 'right', -1)
+
     robotArm.setPositionModeSpeed(0.3);
     robotArm.removeAttachedObject('right_gripper', '')
     % robotPeripheries.openGripper('r');

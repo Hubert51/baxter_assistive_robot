@@ -10,12 +10,12 @@ function [ ] = adjustPose( robotArm, robotPeripheries, side, axis )
     % in the zero configuration, [0 0 1] is moving end_effector towards the
     % direction of gripper.
     p = R2 * [0; 0; -1];
-    
+    pos = robotArm.getPositions(side);
     force = robotArm.getForces(side);
-    while force(1) > 3
-        force = robotArm.getForces(side);
+    while force(1) > 8
+        force = robotArm.getForces(side)
         pos = robotArm.getPositions(side);
-        pos = pos + 0.008*p;
+        pos = pos + 0.01*p;
         ori = robotArm.getOrientations(side);
         my_qs = solveIK(robotArm,  pos, ori, side);
         if ~isempty(my_qs)
@@ -23,7 +23,15 @@ function [ ] = adjustPose( robotArm, robotPeripheries, side, axis )
             pause(0.5)
         end
     end
+    pos = pos + 0.018*p;
+    ori = robotArm.getOrientations(side);
+    my_qs = solveIK(robotArm,  pos, ori, side);
+    if ~isempty(my_qs)
+        robotArm.setJointCommand(side, my_qs);
+        pause(0.5)
+    end
     p = R2 * [0; 1; 0];
+    robotArm.setPositionModeSpeed(0.05);
     while force(2) < 9
         force = robotArm.getForces(side);
         pos = robotArm.getPositions(side);
@@ -32,9 +40,12 @@ function [ ] = adjustPose( robotArm, robotPeripheries, side, axis )
         my_qs = solveIK(robotArm,  pos, ori, side);
         if ~isempty(my_qs)
             robotArm.setJointCommand(side, my_qs);
-            pause(0.5)
         end
     end
+    reset_position( side, robotArm );
+    robotArm.setControlMode(uint8(1));
+    robotArm.setPositionModeSpeed(0.2);
+    robotArm.setControlMode(uint8(0));
 
     
     
