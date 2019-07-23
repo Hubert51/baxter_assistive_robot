@@ -6,11 +6,11 @@
 %% initialize all the parameter and device
 % connecting to robotRR bridges
 
-robotArm = RobotRaconteur.Connect('tcp://localhost:2345/BaxterJointServer/Baxter');
+robotArm = RobotRaconteur.Connect('tcp://192.168.1.134:2345/BaxterJointServer/Baxter');
 % robotArm.publishPoints(points)
-rightCamera = RobotRaconteur.Connect('tcp://localhost:4567/BaxterCameraServer/right_hand_camera');
-leftCamera = RobotRaconteur.Connect('tcp://localhost:9087/BaxterCameraServer/left_hand_camera');
-robotPeripheries = RobotRaconteur.Connect('tcp://localhost:6708/BaxterPeripheralServer/BaxterPeripherals');
+rightCamera = RobotRaconteur.Connect('tcp://192.168.1.134:4567/BaxterCameraServer/right_hand_camera');
+leftCamera = RobotRaconteur.Connect('tcp://192.168.1.134:9087/BaxterCameraServer/left_hand_camera');
+robotPeripheries = RobotRaconteur.Connect('tcp://192.168.1.134:6708/BaxterPeripheralServer/BaxterPeripherals');
 % set the mode=1 if using moveit module to move the arm.
 % robotArm.setControlMode(uint8(1));
 % robotArm.moveitSetJointCommand('both_arm', [1.0; 2.; 3.; 4.;5]);
@@ -20,8 +20,8 @@ rightCamera.openCamera();
 leftCamera.openCamera();
 pause(3.5); 
 
-load('/home/cats/Douglas Robots/cameraparams_right.mat');
-load('/home/cats/Douglas Robots/cameraparams_left.mat');
+load('cameraparams_right.mat');
+load('cameraparams_left.mat');
 load('Hubert.mat')
 load('RoadMap.mat')
 rightCamera.setCameraIntrinsics(cameraparams_right);
